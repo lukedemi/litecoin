@@ -4,7 +4,7 @@
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #
-# Test new Litecoin multisig prefix functionality.
+# Test new LitecoinCash multisig prefix functionality.
 #
 
 from test_framework.test_framework import BitcoinTestFramework
@@ -12,14 +12,16 @@ from test_framework.util import *
 import decimal
 
 class ScriptAddress2Test(BitcoinTestFramework):
-    def set_test_params(self):
+    def __init__(self):
+        super().__init__()
         self.num_nodes = 3
         self.setup_clean_chain = False
 
-    def setup_network(self, split=False):
-        self.setup_nodes()
+    def setup_network(self):
+        self.nodes = self.start_nodes(self.num_nodes, self.options.tmpdir)
         connect_nodes(self.nodes[1], 0)
         connect_nodes(self.nodes[2], 0)
+        self.is_network_split = False
         self.sync_all()
 
     def run_test(self):

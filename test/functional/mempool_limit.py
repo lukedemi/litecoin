@@ -8,10 +8,12 @@ from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import *
 
 class MempoolLimitTest(BitcoinTestFramework):
-    def set_test_params(self):
+
+    def __init__(self):
+        super().__init__()
         self.setup_clean_chain = True
         self.num_nodes = 1
-        self.extra_args = [["-maxmempool=5", "-mintxfee=0.00001", "-spendzeroconfchange=0"]]
+        self.extra_args = [["-maxmempool=5", "-spendzeroconfchange=0"]]
 
     def run_test(self):
         txouts = gen_return_txouts()

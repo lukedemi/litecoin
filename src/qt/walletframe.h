@@ -84,6 +84,8 @@ public Q_SLOTS:
     void changePassphrase();
     /** Ask for passphrase to unlock wallet temporarily */
     void unlockWallet();
+    /** LitecoinCash: Ask for and import a private key */
+    void importPrivateKey();
 
     /** Show used sending addresses */
     void usedSendingAddresses();

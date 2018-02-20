@@ -16,9 +16,15 @@ def txFromHex(hexstring):
     return tx
 
 class ListTransactionsTest(BitcoinTestFramework):
-    def set_test_params(self):
-        self.num_nodes = 2
+    def __init__(self):
+        super().__init__()
+        self.num_nodes = 4
+        self.setup_clean_chain = False
+
+    def setup_nodes(self):
+        #This test requires mocktime
         self.enable_mocktime()
+        self.nodes = self.start_nodes(self.num_nodes, self.options.tmpdir)
 
     def run_test(self):
         # Simple send, 0 to 1:
@@ -90,8 +96,8 @@ class ListTransactionsTest(BitcoinTestFramework):
         assert_array_result(self.nodes[0].listtransactions("watchonly", 100, 0, True),
                            {"category":"receive","amount":Decimal("0.1")},
                            {"txid":txid, "account" : "watchonly"} )
-    # Litecoin has RBF disabled
-    #    self.run_rbf_opt_in_test()
+
+        self.run_rbf_opt_in_test()
 
     # Check that the opt-in-rbf flag works properly, for sent and received
     # transactions.

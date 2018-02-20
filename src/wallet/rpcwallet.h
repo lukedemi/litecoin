@@ -18,6 +18,8 @@ void RegisterWalletRPCCommands(CRPCTable &t);
  */
 CWallet *GetWalletForJSONRPCRequest(const JSONRPCRequest& request);
 
+CWallet *GetWalletForQTKeyImport();
+
 std::string HelpRequiringPassphrase(CWallet *);
 void EnsureWalletIsUnlocked(CWallet *);
 bool EnsureWalletIsAvailable(CWallet *, bool avoidException);

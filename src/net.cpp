@@ -89,6 +89,10 @@ std::string strSubVersion;
 
 limitedmap<uint256, int64_t> mapAlreadyAskedFor(MAX_INV_SZ);
 
+// Signals for message handling
+static CNodeSignals g_signals;
+CNodeSignals& GetNodeSignals() { return g_signals; }
+
 void CConnman::AddOneShot(const std::string& strDest)
 {
     LOCK(cs_vOneShots);
@@ -661,7 +665,7 @@ void CNode::copyStats(CNodeStats &stats)
         X(cleanSubVer);
     }
     X(fInbound);
-    X(m_manual_connection);
+    X(fAddnode);
     X(nStartingHeight);
     {
         LOCK(cs_vSend);
@@ -1110,7 +1114,7 @@ void CConnman::AcceptConnection(const ListenSocket& hListenSocket) {
     CNode* pnode = new CNode(id, nLocalServices, GetBestHeight(), hSocket, addr, CalculateKeyedNetGroup(addr), nonce, addr_bind, "", true);
     pnode->AddRef();
     pnode->fWhitelisted = whitelisted;
-    m_msgproc->InitializeNode(pnode);
+    GetNodeSignals().InitializeNode(pnode, *this);
 
     LogPrint(BCLog::NET, "connection from %s accepted\n", addr.ToString());
 
@@ -1479,7 +1483,7 @@ void ThreadMapPort()
             }
         }
 
-        std::string strDesc = "Litecoin " + FormatFullVersion();
+        std::string strDesc = "LitecoinCash " + FormatFullVersion();
 
         try {
             while (true) {
@@ -1670,37 +1674,6 @@ void CConnman::ProcessOneShot()
     }
 }
 
-bool CConnman::GetTryNewOutboundPeer()
-{
-    return m_try_another_outbound_peer;
-}
-
-void CConnman::SetTryNewOutboundPeer(bool flag)
-{
-    m_try_another_outbound_peer = flag;
-    LogPrint(BCLog::NET, "net: setting try another outbound peer=%s\n", flag ? "true" : "false");
-}
-
-// Return the number of peers we have over our outbound connection limit
-// Exclude peers that are marked for disconnect, or are going to be
-// disconnected soon (eg one-shots and feelers)
-// Also exclude peers that haven't finished initial connection handshake yet
-// (so that we don't decide we're over our desired connection limit, and then
-// evict some peer that has finished the handshake)
-int CConnman::GetExtraOutboundCount()
-{
-    int nOutbound = 0;
-    {
-        LOCK(cs_vNodes);
-        for (CNode* pnode : vNodes) {
-            if (!pnode->fInbound && !pnode->m_manual_connection && !pnode->fFeeler && !pnode->fDisconnect && !pnode->fOneShot && pnode->fSuccessfullyConnected) {
-                ++nOutbound;
-            }
-        }
-    }
-    return std::max(nOutbound - nMaxOutbound, 0);
-}
-
 void CConnman::ThreadOpenConnections()
 {
     // Connect to specific addresses
@@ -1765,7 +1738,7 @@ void CConnman::ThreadOpenConnections()
         {
             LOCK(cs_vNodes);
             for (CNode* pnode : vNodes) {
-                if (!pnode->fInbound && !pnode->m_manual_connection) {
+                if (!pnode->fInbound && !pnode->fAddnode) {
 
                     // Count the peers that have all relevant services
                     if (pnode->fSuccessfullyConnected && !pnode->fFeeler && ((pnode->nServices & nRelevantServices) == nRelevantServices)) {
@@ -1795,8 +1768,7 @@ void CConnman::ThreadOpenConnections()
         //  * Only make a feeler connection once every few minutes.
         //
         bool fFeeler = false;
-
-        if (nOutbound >= nMaxOutbound && !GetTryNewOutboundPeer()) {
+        if (nOutbound >= nMaxOutbound) {
             int64_t nTime = GetTimeMicros(); // The current time right now (in microseconds).
             if (nTime > nNextFeeler) {
                 nNextFeeler = PoissonNextSend(nTime, FEELER_INTERVAL);
@@ -1962,7 +1934,7 @@ void CConnman::ThreadOpenAddedConnections()
 }
 
 // if successful, this moves the passed grant to the constructed node
-bool CConnman::OpenNetworkConnection(const CAddress& addrConnect, bool fCountFailure, CSemaphoreGrant *grantOutbound, const char *pszDest, bool fOneShot, bool fFeeler, bool manual_connection)
+bool CConnman::OpenNetworkConnection(const CAddress& addrConnect, bool fCountFailure, CSemaphoreGrant *grantOutbound, const char *pszDest, bool fOneShot, bool fFeeler, bool fAddnode)
 {
     //
     // Initiate outbound network connection
@@ -1991,10 +1963,10 @@ bool CConnman::OpenNetworkConnection(const CAddress& addrConnect, bool fCountFai
         pnode->fOneShot = true;
     if (fFeeler)
         pnode->fFeeler = true;
-    if (manual_connection)
-        pnode->m_manual_connection = true;
+    if (fAddnode)
+        pnode->fAddnode = true;
 
-    m_msgproc->InitializeNode(pnode);
+    GetNodeSignals().InitializeNode(pnode, *this);
     {
         LOCK(cs_vNodes);
         vNodes.push_back(pnode);
@@ -2024,16 +1996,16 @@ void CConnman::ThreadMessageHandler()
                 continue;
 
             // Receive messages
-            bool fMoreNodeWork = m_msgproc->ProcessMessages(pnode, flagInterruptMsgProc);
+            bool fMoreNodeWork = GetNodeSignals().ProcessMessages(pnode, *this, flagInterruptMsgProc);
             fMoreWork |= (fMoreNodeWork && !pnode->fPauseSend);
             if (flagInterruptMsgProc)
                 return;
+
             // Send messages
             {
                 LOCK(pnode->cs_sendProcessing);
-                m_msgproc->SendMessages(pnode, flagInterruptMsgProc);
+                GetNodeSignals().SendMessages(pnode, *this, flagInterruptMsgProc);
             }
-
             if (flagInterruptMsgProc)
                 return;
         }
@@ -2239,7 +2211,6 @@ CConnman::CConnman(uint64_t nSeed0In, uint64_t nSeed1In) : nSeed0(nSeed0In), nSe
     semOutbound = nullptr;
     semAddnode = nullptr;
     flagInterruptMsgProc = false;
-    SetTryNewOutboundPeer(false);
 
     Options connOptions;
     Init(connOptions);
@@ -2353,7 +2324,6 @@ bool CConnman::Start(CScheduler& scheduler, const Options& connOptions)
     //
     // Start threads
     //
-    assert(m_msgproc);
     InterruptSocks5(false);
     interruptNet.reset();
     flagInterruptMsgProc = false;
@@ -2473,10 +2443,9 @@ void CConnman::DeleteNode(CNode* pnode)
 {
     assert(pnode);
     bool fUpdateConnectionTime = false;
-    m_msgproc->FinalizeNode(pnode->GetId(), fUpdateConnectionTime);
-    if(fUpdateConnectionTime) {
+    GetNodeSignals().FinalizeNode(pnode->GetId(), fUpdateConnectionTime);
+    if(fUpdateConnectionTime)
         addrman.Connected(pnode->addr);
-    }
     delete pnode;
 }
 
@@ -2735,7 +2704,7 @@ CNode::CNode(NodeId idIn, ServiceFlags nLocalServicesIn, int nMyStartingHeightIn
     strSubVer = "";
     fWhitelisted = false;
     fOneShot = false;
-    m_manual_connection = false;
+    fAddnode = false;
     fClient = false; // set by version message
     fFeeler = false;
     fSuccessfullyConnected = false;

@@ -18,6 +18,9 @@
 #include "transactiontablemodel.h"
 #include "transactionview.h"
 #include "walletmodel.h"
+#include "wallet/rpcwallet.h"
+#include "wallet/wallet.h"
+#include "validation.h" // for cs_main
 
 #include "ui_interface.h"
 
@@ -28,6 +31,9 @@
 #include <QProgressDialog>
 #include <QPushButton>
 #include <QVBoxLayout>
+#include <QInputDialog>
+
+#include <boost/thread.hpp>
 
 WalletView::WalletView(const PlatformStyle *_platformStyle, QWidget *parent):
     QStackedWidget(parent),
@@ -100,7 +106,7 @@ void WalletView::setBitcoinGUI(BitcoinGUI *gui)
         // Pass through transaction notifications
         connect(this, SIGNAL(incomingTransaction(QString,int,CAmount,QString,QString,QString)), gui, SLOT(incomingTransaction(QString,int,CAmount,QString,QString,QString)));
 
-        // Connect HD enabled state signal 
+        // Connect HD enabled state signal
         connect(this, SIGNAL(hdEnabledStatusChanged(int)), gui, SLOT(setHDStatus(int)));
     }
 }
@@ -327,4 +333,80 @@ void WalletView::showProgress(const QString &title, int nProgress)
 void WalletView::requestedSyncWarningInfo()
 {
     Q_EMIT outOfSyncWarningClicked();
+}
+
+void WalletView::doRescan(CWallet* pwallet, int64_t startTime)
+{
+	pwallet->RescanFromTime(TIMESTAMP_MIN, true);
+	QMessageBox::information(0, tr(PACKAGE_NAME), tr("Rescan complete."));
+}
+
+// LitecoinCash: Helper to import a private key instead of making the user go to the debug console
+void WalletView::importPrivateKey()
+{
+    bool ok;
+    QString privKey = QInputDialog::getText(0, tr(PACKAGE_NAME), tr("Enter a Litecoin/LitecoinCash private key to import into your wallet."), QLineEdit::Normal, "", &ok);
+    if (ok && !privKey.isEmpty()) {
+        CWallet* pwallet = GetWalletForQTKeyImport();
+
+        if(!pwallet) {
+            QMessageBox::critical(0, tr(PACKAGE_NAME), tr("Couldn't select valid wallet."));
+            return;
+        }
+
+        if (!EnsureWalletIsAvailable(pwallet, false)) {
+            QMessageBox::critical(0, tr(PACKAGE_NAME), tr("Wallet isn't open."));
+            return;
+        }
+
+        LOCK2(cs_main, pwallet->cs_wallet);
+
+        WalletModel::UnlockContext ctx(walletModel->requestUnlock());
+        if(!ctx.isValid())  // Unlock wallet was cancelled
+            return;
+
+        CBitcoinSecret vchSecret;
+        if (!vchSecret.SetString(privKey.toStdString())) {
+            QMessageBox::critical(0, tr(PACKAGE_NAME), tr("This doesn't appear to be a Litecoin/LitecoinCash private key."));
+            return;
+        }
+
+        CKey key = vchSecret.GetKey();
+        if (!key.IsValid()) {
+            QMessageBox::critical(0, tr(PACKAGE_NAME), tr("Private key outside allowed range."));
+            return;
+        }
+
+        CPubKey pubkey = key.GetPubKey();
+        assert(key.VerifyPubKey(pubkey));
+        CKeyID vchAddress = pubkey.GetID();
+        {
+            pwallet->MarkDirty();
+            pwallet->SetAddressBook(vchAddress, "", "receive");
+
+            if (pwallet->HaveKey(vchAddress)) {
+                QMessageBox::critical(0, tr(PACKAGE_NAME), tr("This key has already been added."));
+                return;
+            }
+
+            pwallet->mapKeyMetadata[vchAddress].nCreateTime = 1;
+
+            if (!pwallet->AddKeyPubKey(key, pubkey)) {
+                QMessageBox::critical(0, tr(PACKAGE_NAME), tr("Error adding key to wallet."));
+                return;
+            }
+
+            pwallet->UpdateTimeFirstKey(1); // Mark as rescan needed, even if we don't do it now (it'll happen next restart if not before)
+            
+            QMessageBox msgBox;
+            msgBox.setText(tr("Key successfully added to wallet."));
+            msgBox.setInformativeText("Rescan now? (Select No if you have more keys to import)");
+            msgBox.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
+            msgBox.setDefaultButton(QMessageBox::No);
+            
+            if (msgBox.exec() == QMessageBox::Yes)
+                boost::thread t{WalletView::doRescan, pwallet, TIMESTAMP_MIN};                
+        }
+        return;
+    }
 }

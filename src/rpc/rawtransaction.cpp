@@ -112,7 +112,7 @@ UniValue getrawtransaction(const JSONRPCRequest& request)
             "         \"reqSigs\" : n,            (numeric) The required sigs\n"
             "         \"type\" : \"pubkeyhash\",  (string) The type, eg 'pubkeyhash'\n"
             "         \"addresses\" : [           (json array of string)\n"
-            "           \"address\"        (string) litecoin address\n"
+            "           \"address\"        (string) litecoincash address\n"
             "           ,...\n"
             "         ]\n"
             "       }\n"
@@ -310,7 +310,7 @@ UniValue createrawtransaction(const JSONRPCRequest& request)
             "     ]\n"
             "2. \"outputs\"               (object, required) a json object with outputs\n"
             "    {\n"
-            "      \"address\": x.xxx,    (numeric or string, required) The key is the litecoin address, the numeric value (can be string) is the " + CURRENCY_UNIT + " amount\n"
+            "      \"address\": x.xxx,    (numeric or string, required) The key is the litecoincash address, the numeric value (can be string) is the " + CURRENCY_UNIT + " amount\n"
             "      \"data\": \"hex\"      (string, required) The key is \"data\", the value is hex encoded data\n"
             "      ,...\n"
             "    }\n"
@@ -395,7 +395,7 @@ UniValue createrawtransaction(const JSONRPCRequest& request)
         } else {
             CBitcoinAddress address(name_);
             if (!address.IsValid())
-                throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, std::string("Invalid Litecoin address: ")+name_);
+                throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, std::string("Invalid LitecoinCash address: ")+name_);
 
             if (setAddress.count(address))
                 throw JSONRPCError(RPC_INVALID_PARAMETER, std::string("Invalid parameter, duplicated address: ")+name_);
@@ -457,7 +457,7 @@ UniValue decoderawtransaction(const JSONRPCRequest& request)
             "         \"reqSigs\" : n,            (numeric) The required sigs\n"
             "         \"type\" : \"pubkeyhash\",  (string) The type, eg 'pubkeyhash'\n"
             "         \"addresses\" : [           (json array of string)\n"
-            "           \"12tvKAXCxZjSmdNbao16dKXC8tRWfcF5oc\"   (string) litecoin address\n"
+            "           \"12tvKAXCxZjSmdNbao16dKXC8tRWfcF5oc\"   (string) litecoincash address\n"
             "           ,...\n"
             "         ]\n"
             "       }\n"
@@ -500,7 +500,7 @@ UniValue decodescript(const JSONRPCRequest& request)
             "  \"type\":\"type\", (string) The output type\n"
             "  \"reqSigs\": n,    (numeric) The required signatures\n"
             "  \"addresses\": [   (json array of string)\n"
-            "     \"address\"     (string) litecoin address\n"
+            "     \"address\"     (string) litecoincash address\n"
             "     ,...\n"
             "  ],\n"
             "  \"p2sh\",\"address\" (string) address of P2SH script wrapping this redeem script (not returned if the script is already a P2SH).\n"
@@ -824,22 +824,28 @@ UniValue signrawtransaction(const JSONRPCRequest& request)
     const CKeyStore& keystore = tempKeystore;
 #endif
 
-    int nHashType = SIGHASH_ALL;
-    if (request.params.size() > 3 && !request.params[3].isNull()) {
-        static std::map<std::string, int> mapSigHashValues = {
-            {std::string("ALL"), int(SIGHASH_ALL)},
-            {std::string("ALL|ANYONECANPAY"), int(SIGHASH_ALL|SIGHASH_ANYONECANPAY)},
-            {std::string("NONE"), int(SIGHASH_NONE)},
-            {std::string("NONE|ANYONECANPAY"), int(SIGHASH_NONE|SIGHASH_ANYONECANPAY)},
-            {std::string("SINGLE"), int(SIGHASH_SINGLE)},
-            {std::string("SINGLE|ANYONECANPAY"), int(SIGHASH_SINGLE|SIGHASH_ANYONECANPAY)},
-        };
-        std::string strHashType = request.params[3].get_str();
-        if (mapSigHashValues.count(strHashType))
-            nHashType = mapSigHashValues[strHashType];
-        else
-            throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid sighash param");
-    }
+    int nHashType = SIGHASH_ALL | SIGHASH_FORKID;																// LitecoinCash: Replay attack protection
+	if (request.params.size() > 3 && !request.params[3].isNull()) {
+	   static std::map<std::string, int> mapSigHashValues = {
+		   {std::string("ALL"), int(SIGHASH_ALL)},
+		   {std::string("ALL|ANYONECANPAY"), int(SIGHASH_ALL|SIGHASH_ANYONECANPAY)},
+		   {std::string("NONE"), int(SIGHASH_NONE)},
+		   {std::string("NONE|ANYONECANPAY"), int(SIGHASH_NONE|SIGHASH_ANYONECANPAY)},
+		   {std::string("SINGLE"), int(SIGHASH_SINGLE)},
+		   {std::string("SINGLE|ANYONECANPAY"), int(SIGHASH_SINGLE|SIGHASH_ANYONECANPAY)},
+		   {std::string("ALL|FORKID"), int(SIGHASH_ALL|SIGHASH_FORKID)},											// LitecoinCash: Replay attack protection
+		   {std::string("NONE|FORKID"), int(SIGHASH_NONE|SIGHASH_FORKID)},											// LitecoinCash: Replay attack protection
+		   {std::string("SINGLE|FORKID"), int(SIGHASH_SINGLE|SIGHASH_FORKID)},										// LitecoinCash: Replay attack protection
+		   {std::string("ALL|FORKID|ANYONECANPAY"), int(SIGHASH_ALL|SIGHASH_FORKID|SIGHASH_ANYONECANPAY)},			// LitecoinCash: Replay attack protection
+		   {std::string("NONE|FORKID|ANYONECANPAY"), int(SIGHASH_NONE|SIGHASH_FORKID|SIGHASH_ANYONECANPAY)},		// LitecoinCash: Replay attack protection
+		   {std::string("SINGLE|FORKID|ANYONECANPAY"), int(SIGHASH_SINGLE|SIGHASH_FORKID|SIGHASH_ANYONECANPAY)},	// LitecoinCash: Replay attack protection
+	   };
+	   std::string strHashType = request.params[3].get_str();
+	   if (mapSigHashValues.count(strHashType))
+		   nHashType = mapSigHashValues[strHashType] | SIGHASH_FORKID;												// LitecoinCash: Replay attack protection
+	   else
+		   throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid sighash param");
+	}
 
     bool fHashSingle = ((nHashType & ~SIGHASH_ANYONECANPAY) == SIGHASH_SINGLE);
 

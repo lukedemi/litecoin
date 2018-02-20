@@ -364,12 +364,6 @@ BOOST_AUTO_TEST_CASE(ApproximateBestSubset)
     empty_wallet();
 }
 
-static void AddKey(CWallet& wallet, const CKey& key)
-{
-    LOCK(wallet.cs_wallet);
-    wallet.AddKeyPubKey(key, key.GetPubKey());
-}
-
 BOOST_FIXTURE_TEST_CASE(rescan, TestChain100Setup)
 {
     LOCK(cs_main);
@@ -385,9 +379,10 @@ BOOST_FIXTURE_TEST_CASE(rescan, TestChain100Setup)
     // and new block files.
     {
         CWallet wallet;
-        AddKey(wallet, coinbaseKey);
+        LOCK(wallet.cs_wallet);
+        wallet.AddKeyPubKey(coinbaseKey, coinbaseKey.GetPubKey());
         BOOST_CHECK_EQUAL(nullBlock, wallet.ScanForWalletTransactions(oldTip));
-        BOOST_CHECK_EQUAL(wallet.GetImmatureBalance(), 100 * COIN);
+        BOOST_CHECK_EQUAL(wallet.GetImmatureBalance(), 1000 * COIN);	// LitecoinCash: Coinscale
     }
 
     // Prune the older block file.
@@ -398,9 +393,10 @@ BOOST_FIXTURE_TEST_CASE(rescan, TestChain100Setup)
     // file.
     {
         CWallet wallet;
-        AddKey(wallet, coinbaseKey);
+        LOCK(wallet.cs_wallet);
+        wallet.AddKeyPubKey(coinbaseKey, coinbaseKey.GetPubKey());
         BOOST_CHECK_EQUAL(oldTip, wallet.ScanForWalletTransactions(oldTip));
-        BOOST_CHECK_EQUAL(wallet.GetImmatureBalance(), 50 * COIN);
+        BOOST_CHECK_EQUAL(wallet.GetImmatureBalance(), 500 * COIN); 	// LitecoinCash: Coinscale
     }
 
     // Verify importmulti RPC returns failure for a key whose creation time is
@@ -524,7 +520,7 @@ BOOST_FIXTURE_TEST_CASE(coin_mark_dirty_immature_credit, TestChain100Setup)
     // credit amount is calculated.
     wtx.MarkDirty();
     wallet.AddKeyPubKey(coinbaseKey, coinbaseKey.GetPubKey());
-    BOOST_CHECK_EQUAL(wtx.GetImmatureCredit(), 50*COIN);
+    BOOST_CHECK_EQUAL(wtx.GetImmatureCredit(), 500*COIN); 	// LitecoinCash: Coinscale
 }
 
 static int64_t AddTx(CWallet& wallet, uint32_t lockTime, int64_t mockTime, int64_t blockTime)
@@ -603,7 +599,8 @@ public:
         wallet.reset(new CWallet(std::unique_ptr<CWalletDBWrapper>(new CWalletDBWrapper(&bitdb, "wallet_test.dat"))));
         bool firstRun;
         wallet->LoadWallet(firstRun);
-        AddKey(*wallet, coinbaseKey);
+        LOCK(wallet->cs_wallet);
+        wallet->AddKeyPubKey(coinbaseKey, coinbaseKey.GetPubKey());
         wallet->ScanForWalletTransactions(chainActive.Genesis());
     }
 
@@ -638,7 +635,7 @@ public:
 BOOST_FIXTURE_TEST_CASE(ListCoins, ListCoinsTestingSetup)
 {
     std::string coinbaseAddress = coinbaseKey.GetPubKey().GetID().ToString();
-    LOCK2(cs_main, wallet->cs_wallet);
+    LOCK(wallet->cs_wallet);
 
     // Confirm ListCoins initially returns 1 coin grouped under coinbaseKey
     // address.
@@ -648,7 +645,7 @@ BOOST_FIXTURE_TEST_CASE(ListCoins, ListCoinsTestingSetup)
     BOOST_CHECK_EQUAL(list.begin()->second.size(), 1);
 
     // Check initial balance from one mature coinbase transaction.
-    BOOST_CHECK_EQUAL(50 * COIN, wallet->GetAvailableBalance());
+    BOOST_CHECK_EQUAL(500 * COIN, wallet->GetAvailableBalance()); 	// LitecoinCash: Coinscale
 
     // Add a transaction creating a change address, and confirm ListCoins still
     // returns the coin associated with the change address underneath the

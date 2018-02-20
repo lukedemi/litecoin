@@ -23,13 +23,13 @@ from test_framework.mininode import (
     mininode_lock,
     msg_block,
     msg_getdata,
+    wait_until,
 )
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import (
     assert_equal,
     connect_nodes,
     p2p_port,
-    wait_until,
 )
 
 # NodeConnCB is a class containing callbacks to be executed when a P2P
@@ -73,19 +73,21 @@ def custom_function():
 class ExampleTest(BitcoinTestFramework):
     # Each functional test is a subclass of the BitcoinTestFramework class.
 
-    # Override the set_test_params(), add_options(), setup_chain(), setup_network()
+    # Override the __init__(), add_options(), setup_chain(), setup_network()
     # and setup_nodes() methods to customize the test setup as required.
 
-    def set_test_params(self):
-        """Override test parameters for your individual test.
+    def __init__(self):
+        """Initialize the test
 
-        This method must be overridden and num_nodes must be exlicitly set."""
+        Call super().__init__() first, and then override any test parameters
+        for your individual test."""
+        super().__init__()
         self.setup_clean_chain = True
         self.num_nodes = 3
         # Use self.extra_args to change command-line arguments for the nodes
         self.extra_args = [[], ["-logips"], []]
 
-        # self.log.info("I've finished set_test_params")  # Oops! Can't run self.log before run_test()
+        # self.log.info("I've finished __init__")  # Oops! Can't run self.log before run_test()
 
     # Use add_options() to add specific command-line options for your test.
     # In practice this is not used very much, since the tests are mostly written
@@ -207,7 +209,7 @@ class ExampleTest(BitcoinTestFramework):
 
         # wait_until() will loop until a predicate condition is met. Use it to test properties of the
         # NodeConnCB objects.
-        wait_until(lambda: sorted(blocks) == sorted(list(node2.block_receive_map.keys())), timeout=5, lock=mininode_lock)
+        assert wait_until(lambda: sorted(blocks) == sorted(list(node2.block_receive_map.keys())), timeout=5)
 
         self.log.info("Check that each block was received only once")
         # The network thread uses a global lock on data access to the NodeConn objects when sending and receiving

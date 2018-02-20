@@ -81,7 +81,6 @@ BASE_SCRIPTS= [
     # vv Tests less than 30s vv
     'keypool-topup.py',
     'zmq_test.py',
-    'bitcoin_cli.py',
     'mempool_resurrect_test.py',
     'txn_doublespend.py --mineblock',
     'txn_clone.py',
@@ -122,8 +121,6 @@ BASE_SCRIPTS= [
     'bip65-cltv-p2p.py',
     'uptime.py',
     'resendwallettransactions.py',
-    'minchainwork.py',
-    'p2p-acceptblock.py',
 ]
 
 EXTENDED_SCRIPTS = [
@@ -151,6 +148,7 @@ EXTENDED_SCRIPTS = [
     'txn_clone.py --mineblock',
     'forknotify.py',
     'invalidateblock.py',
+    'p2p-acceptblock.py',
     'replace-by-fee.py',
 ]
 
@@ -199,7 +197,7 @@ def main():
     logging.basicConfig(format='%(message)s', level=logging_level)
 
     # Create base test directory
-    tmpdir = "%s/litecoin_test_runner_%s" % (args.tmpdirprefix, datetime.datetime.now().strftime("%Y%m%d_%H%M%S"))
+    tmpdir = "%s/litecoincash_test_runner_%s" % (args.tmpdirprefix, datetime.datetime.now().strftime("%Y%m%d_%H%M%S"))
     os.makedirs(tmpdir)
 
     logging.debug("Temporary test directory at %s" % tmpdir)
@@ -215,7 +213,7 @@ def main():
         sys.exit(0)
 
     if not (enable_wallet and enable_utils and enable_bitcoind):
-        print("No functional tests to run. Wallet, utils, and litecoind must all be enabled")
+        print("No functional tests to run. Wallet, utils, and litecoincashd must all be enabled")
         print("Rerun `configure` with -enable-wallet, -with-utils and -with-daemon and rerun make")
         sys.exit(0)
 
@@ -269,8 +267,8 @@ def main():
 def run_tests(test_list, src_dir, build_dir, exeext, tmpdir, jobs=1, enable_coverage=False, args=[]):
     # Warn if bitcoind is already running (unix only)
     try:
-        if subprocess.check_output(["pidof", "litecoind"]) is not None:
-            print("%sWARNING!%s There is already a litecoind process running on this system. Tests may fail unexpectedly due to resource contention!" % (BOLD[1], BOLD[0]))
+        if subprocess.check_output(["pidof", "litecoincashd"]) is not None:
+            print("%sWARNING!%s There is already a litecoincashd process running on this system. Tests may fail unexpectedly due to resource contention!" % (BOLD[1], BOLD[0]))
     except (OSError, subprocess.SubprocessError):
         pass
 
@@ -280,9 +278,8 @@ def run_tests(test_list, src_dir, build_dir, exeext, tmpdir, jobs=1, enable_cove
         print("%sWARNING!%s There is a cache directory here: %s. If tests fail unexpectedly, try deleting the cache directory." % (BOLD[1], BOLD[0], cache_dir))
 
     #Set env vars
-    if "LITECOIND" not in os.environ:
-        os.environ["LITECOIND"] = build_dir + '/src/litecoind' + exeext
-        os.environ["LITECOINCLI"] = build_dir + '/src/litecoin-cli' + exeext
+    if "LITECOINCASHD" not in os.environ:
+        os.environ["LITECOINCASHD"] = build_dir + '/src/litecoincashd' + exeext
 
     tests_dir = src_dir + '/test/functional/'
 
@@ -465,7 +462,7 @@ class RPCCoverage(object):
     Coverage calculation works by having each test script subprocess write
     coverage files into a particular directory. These files contain the RPC
     commands invoked during testing, as well as a complete listing of RPC
-    commands per `litecoin-cli help` (`rpc_interface.txt`).
+    commands per `bitcoin-cli help` (`rpc_interface.txt`).
 
     After all tests complete, the commands run are combined and diff'd against
     the complete list to calculate uncovered RPC commands.

@@ -54,10 +54,10 @@ static int AppInitRawTx(int argc, char* argv[])
     if (argc<2 || gArgs.IsArgSet("-?") || gArgs.IsArgSet("-h") || gArgs.IsArgSet("-help"))
     {
         // First part of help message is specific to this utility
-        std::string strUsage = strprintf(_("%s litecoin-tx utility version"), _(PACKAGE_NAME)) + " " + FormatFullVersion() + "\n\n" +
+        std::string strUsage = strprintf(_("%s litecoincash-tx utility version"), _(PACKAGE_NAME)) + " " + FormatFullVersion() + "\n\n" +
             _("Usage:") + "\n" +
-              "  litecoin-tx [options] <hex-tx> [commands]  " + _("Update hex-encoded litecoin transaction") + "\n" +
-              "  litecoin-tx [options] -create [commands]   " + _("Create hex-encoded litecoin transaction") + "\n" +
+              "  litecoincash-tx [options] <hex-tx> [commands]  " + _("Update hex-encoded litecoincash transaction") + "\n" +
+              "  litecoincash-tx [options] -create [commands]   " + _("Create hex-encoded litecoincash transaction") + "\n" +
               "\n";
 
         fprintf(stdout, "%s", strUsage.c_str());
@@ -310,9 +310,6 @@ static void MutateTxAddOutPubKey(CMutableTransaction& tx, const std::string& str
     }
 
     if (bSegWit) {
-        if (!pubkey.IsCompressed()) {
-            throw std::runtime_error("Uncompressed pubkeys are not useable for SegWit outputs");
-        }
         // Call GetScriptForWitness() to build a P2WSH scriptPubKey
         scriptPubKey = GetScriptForWitness(scriptPubKey);
     }
@@ -380,11 +377,6 @@ static void MutateTxAddOutMultiSig(CMutableTransaction& tx, const std::string& s
     CScript scriptPubKey = GetScriptForMultisig(required, pubkeys);
 
     if (bSegWit) {
-        for (CPubKey& pubkey : pubkeys) {
-            if (!pubkey.IsCompressed()) {
-                throw std::runtime_error("Uncompressed pubkeys are not useable for SegWit outputs");
-            }
-        }
         // Call GetScriptForWitness() to build a P2WSH scriptPubKey
         scriptPubKey = GetScriptForWitness(scriptPubKey);
     }

@@ -7,6 +7,8 @@
 #define BITCOIN_CONSENSUS_PARAMS_H
 
 #include "uint256.h"
+#include "script/script.h"
+#include "amount.h"
 #include <map>
 #include <string>
 
@@ -63,6 +65,13 @@ struct Params {
     int64_t DifficultyAdjustmentInterval() const { return nPowTargetTimespan / nPowTargetSpacing; }
     uint256 nMinimumChainWork;
     uint256 defaultAssumeValid;
+
+    uint32_t powForkTime;           // LitecoinCash: Time of PoW hash method change
+    int lastScryptBlock;            // LitecoinCash: Height of last scrypt block
+    int slowStartBlocks;            // LitecoinCash: Scale post-fork block reward over this many blocks
+    uint256 powLimitSHA;            // LitecoinCash: Initial hash target at fork
+    CAmount premineAmount;          // LitecoinCash: Premine amount
+    CScript premineOutputScript;    // LitecoinCash: Premine output script
 };
 } // namespace Consensus
 

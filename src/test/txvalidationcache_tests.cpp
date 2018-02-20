@@ -55,9 +55,9 @@ BOOST_FIXTURE_TEST_CASE(tx_mempool_block_doublespend, TestChain100Setup)
 
         // Sign:
         std::vector<unsigned char> vchSig;
-        uint256 hash = SignatureHash(scriptPubKey, spends[i], 0, SIGHASH_ALL, 0, SIGVERSION_BASE);
+        uint256 hash = SignatureHash(scriptPubKey, spends[i], 0, SIGHASH_ALL | SIGHASH_FORKID, 0, SIGVERSION_BASE);			// LitecoinCash: Replay attack protection
         BOOST_CHECK(coinbaseKey.Sign(hash, vchSig));
-        vchSig.push_back((unsigned char)SIGHASH_ALL);
+        vchSig.push_back((unsigned char)SIGHASH_ALL | SIGHASH_FORKID);	// LitecoinCash: Replay attack protection
         spends[i].vin[0].scriptSig << vchSig;
     }
 
@@ -109,6 +109,7 @@ void ValidateCheckInputsForAllFlags(CMutableTransaction &tx, uint32_t failing_fl
     for (uint32_t test_flags=0; test_flags < (1U << 16); test_flags += 1) {
         CValidationState state;
         // Filter out incompatible flag choices
+        test_flags |= SCRIPT_ENABLE_SIGHASH_FORKID;
         if ((test_flags & SCRIPT_VERIFY_CLEANSTACK)) {
             // CLEANSTACK requires P2SH and WITNESS, see VerifyScript() in
             // script/interpreter.cpp
@@ -184,10 +185,10 @@ BOOST_FIXTURE_TEST_CASE(checkinputs_test, TestChain100Setup)
     // Sign, with a non-DER signature
     {
         std::vector<unsigned char> vchSig;
-        uint256 hash = SignatureHash(p2pk_scriptPubKey, spend_tx, 0, SIGHASH_ALL, 0, SIGVERSION_BASE);
+        uint256 hash = SignatureHash(p2pk_scriptPubKey, spend_tx, 0, SIGHASH_ALL | SIGHASH_FORKID, 0, SIGVERSION_BASE);			// LitecoinCash: Replay attack protection
         BOOST_CHECK(coinbaseKey.Sign(hash, vchSig));
         vchSig.push_back((unsigned char) 0); // padding byte makes this non-DER
-        vchSig.push_back((unsigned char)SIGHASH_ALL);
+        vchSig.push_back((unsigned char)SIGHASH_ALL | SIGHASH_FORKID);  // LitecoinCash: Replay attack protection
         spend_tx.vin[0].scriptSig << vchSig;
     }
 
@@ -256,9 +257,9 @@ BOOST_FIXTURE_TEST_CASE(checkinputs_test, TestChain100Setup)
 
         // Sign
         std::vector<unsigned char> vchSig;
-        uint256 hash = SignatureHash(spend_tx.vout[2].scriptPubKey, invalid_with_cltv_tx, 0, SIGHASH_ALL, 0, SIGVERSION_BASE);
+        uint256 hash = SignatureHash(spend_tx.vout[2].scriptPubKey, invalid_with_cltv_tx, 0, SIGHASH_ALL | SIGHASH_FORKID, 0, SIGVERSION_BASE);		// LitecoinCash: Replay attack protection
         BOOST_CHECK(coinbaseKey.Sign(hash, vchSig));
-        vchSig.push_back((unsigned char)SIGHASH_ALL);
+        vchSig.push_back((unsigned char)SIGHASH_ALL | SIGHASH_FORKID);	// LitecoinCash: Replay attack protection
         invalid_with_cltv_tx.vin[0].scriptSig = CScript() << vchSig << 101;
 
         ValidateCheckInputsForAllFlags(invalid_with_cltv_tx, SCRIPT_VERIFY_CHECKLOCKTIMEVERIFY, true, true);
@@ -284,9 +285,9 @@ BOOST_FIXTURE_TEST_CASE(checkinputs_test, TestChain100Setup)
 
         // Sign
         std::vector<unsigned char> vchSig;
-        uint256 hash = SignatureHash(spend_tx.vout[3].scriptPubKey, invalid_with_csv_tx, 0, SIGHASH_ALL, 0, SIGVERSION_BASE);
+        uint256 hash = SignatureHash(spend_tx.vout[3].scriptPubKey, invalid_with_csv_tx, 0, SIGHASH_ALL | SIGHASH_FORKID, 0, SIGVERSION_BASE);	// LitecoinCash: Replay attack protection
         BOOST_CHECK(coinbaseKey.Sign(hash, vchSig));
-        vchSig.push_back((unsigned char)SIGHASH_ALL);
+        vchSig.push_back((unsigned char)SIGHASH_ALL | SIGHASH_FORKID);	// LitecoinCash: Replay attack protection
         invalid_with_csv_tx.vin[0].scriptSig = CScript() << vchSig << 101;
 
         ValidateCheckInputsForAllFlags(invalid_with_csv_tx, SCRIPT_VERIFY_CHECKSEQUENCEVERIFY, true, true);
@@ -314,7 +315,7 @@ BOOST_FIXTURE_TEST_CASE(checkinputs_test, TestChain100Setup)
 
         // Sign
         SignatureData sigdata;
-        ProduceSignature(MutableTransactionSignatureCreator(&keystore, &valid_with_witness_tx, 0, 11*CENT, SIGHASH_ALL), spend_tx.vout[1].scriptPubKey, sigdata);
+        ProduceSignature(MutableTransactionSignatureCreator(&keystore, &valid_with_witness_tx, 0, 11*CENT, SIGHASH_ALL | SIGHASH_FORKID), spend_tx.vout[1].scriptPubKey, sigdata);	// LitecoinCash: Replay attack protection
         UpdateTransaction(valid_with_witness_tx, 0, sigdata);
 
         // This should be valid under all script flags.
@@ -342,7 +343,7 @@ BOOST_FIXTURE_TEST_CASE(checkinputs_test, TestChain100Setup)
         // Sign
         for (int i=0; i<2; ++i) {
             SignatureData sigdata;
-            ProduceSignature(MutableTransactionSignatureCreator(&keystore, &tx, i, 11*CENT, SIGHASH_ALL), spend_tx.vout[i].scriptPubKey, sigdata);
+            ProduceSignature(MutableTransactionSignatureCreator(&keystore, &tx, i, 11*CENT, SIGHASH_ALL | SIGHASH_FORKID), spend_tx.vout[i].scriptPubKey, sigdata);		// LitecoinCash: Replay attack protection
             UpdateTransaction(tx, i, sigdata);
         }
 
